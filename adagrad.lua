@@ -7,6 +7,7 @@ ARGS:
 - `state` : a table describing the state of the optimizer; after each
          call the state is modified
 - `state.learningRate` : learning rate
+- `state.weightDecay` : weight decay
 - `state.paramVariance` : vector of temporal variances of parameters
 
 RETURN:
@@ -23,6 +24,7 @@ function optim.adagrad(opfunc, x, config, state)
    local state = state or config
    local lr = config.learningRate or 1e-3
    local lrd = config.learningRateDecay or 0
+   local wd = config.weightDecay or 0
    state.evalCounter = state.evalCounter or 0
    local nevals = state.evalCounter
 
@@ -31,7 +33,7 @@ function optim.adagrad(opfunc, x, config, state)
 
    -- (3) learning rate decay (annealing)
    local clr = lr / (1 + nevals*lrd)
-      
+
    -- (4) parameter update with single or individual learning rates
    if not state.paramVariance then
       state.paramVariance = torch.Tensor():typeAs(x):resizeAs(dfdx):zero()
@@ -39,7 +41,11 @@ function optim.adagrad(opfunc, x, config, state)
    end
    state.paramVariance:addcmul(1,dfdx,dfdx)
    state.paramStd:resizeAs(state.paramVariance):copy(state.paramVariance):sqrt()
-   x:addcdiv(-clr, dfdx,state.paramStd:add(1e-10))
+   if wd == 0 then
+      x:addcdiv(-clr, dfdx, state.paramStd:add(1e-10))
+   else
+      x:addcdiv(-clr, dfdx:add(wd), state.paramStd:add(1e-10))
+   end
 
    -- (5) update evaluation counter
    state.evalCounter = state.evalCounter + 1
